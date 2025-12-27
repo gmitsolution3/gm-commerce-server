@@ -18,6 +18,10 @@ export async function getAllProductService() {
     .find(query)
     .sort({ createdAt: -1 })
     .toArray();
-    
+
   return result;
+}
+
+export async function getProduct(slug: string) {
+  return await productCollection.findOne({ slug });
 }
