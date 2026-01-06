@@ -5,7 +5,7 @@ const createOrderCollection = client
   .db("loweCommerce")
   .collection("create_order");
 
-
+// created order
 export async function CreateOrderService(payload: any) {
   //  Extract slugs from cart
   const slugs = payload.products.map((p: any) => p.slug);
@@ -18,7 +18,7 @@ export async function CreateOrderService(payload: any) {
     .toArray();
 
   if (!productsFromDB.length) {
-    throw new Error("No products found in database for given slugs");
+    return { success: false, message: "No Data found in database" };
   }
 
   //  Merge frontend cart with DB data & validate price / stock
@@ -87,6 +87,8 @@ export async function CreateOrderService(payload: any) {
     paymentStatus: payload.paymentStatus,
   };
 
+  console.log(payload.orderStatus, payload.paymentStatus);
+
   // Insert order into DB
   const result = await createOrderCollection.insertOne(orderData);
 
@@ -99,15 +101,24 @@ export async function CreateOrderService(payload: any) {
   };
 }
 
+// get all order
 export async function getAllOrder() {
-  const result = await createOrderCollection.find().toArray();
+  const result = await createOrderCollection
+    .find()
+    .sort({ createdAt: -1 })
+    .toArray();
   return result;
 }
 
-export async function getSingleOrder(query:any) {
-
-  const result = await createOrderCollection.findOne(query)
+// get single order for details and edit
+export async function getSingleOrder(query: any) {
+  const result = await createOrderCollection.findOne(query);
 
   return result;
-  
 }
+
+export const updateSingleOrder = async (query: any, payload: any) => {
+  return await createOrderCollection.updateOne(query, {
+    $set: payload,
+  });
+};
