@@ -4,11 +4,11 @@
   "description": "",
   "license": "ISC",
   "author": "",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "npx tsx watch ./src/server.ts"
-  },
+  "dev": "npx tsx watch ./src/server.ts",
+  "build": "tsc"
+},
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
