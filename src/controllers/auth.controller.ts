@@ -51,11 +51,17 @@ export const logInController = async (req: Request, res: Response) => {
     //   maxAge: 3 * 24 * 60 * 60 * 1000,
     // });
 
+    const cookieDomain =
+      process.env.NODE_ENV === "production"
+        ? ".gm-commerce.vercel.app"
+        : ".low-e-commerce.vercel.app"; 
+
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 3 * 24 * 60 * 60 * 1000,
+      domain: cookieDomain,
     });
 
     res.status(200).json({
