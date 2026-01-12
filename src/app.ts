@@ -12,12 +12,10 @@ import cookieParser from "cookie-parser";
 
 const app = express();
 app.use(express.json());
+
 app.use(
   cors({
-    origin: [
-      "https://low-e-commerce-server.vercel.app",
-      "http://localhost:3000",
-    ],
+    origin: ["https://gm-commerce.vercel.app", "http://localhost:3000"],
     credentials: true,
   })
 );
