@@ -6,12 +6,15 @@ import {
   getDashboardAnalytics,
   getHistory,
   getSingleOrder,
+  storeOTPForOrder,
   updateSingleOrder,
 } from "../services/createOrder.service";
 import { ObjectId } from "mongodb";
+import { sendEmail } from "../helper/nodemailerFun";
 
 export const CreateOrder = async (req: Request, res: Response) => {
   const orderData = req.body;
+  const ip = (req as any).userIP;
   if (!orderData) {
     return res.status(500).json({
       success: false,
@@ -19,8 +22,34 @@ export const CreateOrder = async (req: Request, res: Response) => {
     });
   }
 
+  const finalPayload = {ip, ...orderData}
+
   try {
-    const result = await CreateOrderService(orderData);
+    console.log("create order knocked")
+    const result = await CreateOrderService(finalPayload);
+
+    console.log({orderResult: result})
+
+
+    if(result.status === "FRAUD" || result.status === "SUSPICIOUS"){
+
+      const otpStore = await storeOTPForOrder(result)
+
+      if (!otpStore.success) {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to generate OTP",
+        });
+      }
+
+      return res.status(200).json({
+        success: false,
+        message: "Need to verify email",
+        data: otpStore,
+        orderId: result.orderId,
+        isRedirect: true,
+      });
+    }
 
     res.status(201).send(result);
   } catch (err: any) {

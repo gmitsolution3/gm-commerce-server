@@ -3,10 +3,22 @@ import { client } from "../config/db";
 import { hashSha256 } from "../utils/encryption";
 import { getFacebookCredentialsService } from "./facebook.service";
 import { productCollection } from "./product.service";
+import { VisitorDoc } from "../types";
+import { calculateRisk } from "../utils/calculateRisk";
+import { generateSecureOTP } from "../helper/generateOTP";
+import { sendEmail } from "../helper/nodemailerFun";
+import { addFraudScoreService } from "./visitorLOg.service";
+import { ObjectId } from "mongodb";
 
 const createOrderCollection = client
   .db("loweCommerce")
   .collection("create_order");
+const visitorLog = client.db("loweCommerce").collection("VisitorLog");
+const userLocation = client
+  .db("loweCommerce")
+  .collection<VisitorDoc>("UserLocation");
+
+const otpCollection = client.db("loweCommerce").collection("OTPStore");
 
 // created order
 export async function CreateOrderService(payload: any) {
@@ -106,10 +118,28 @@ export async function CreateOrderService(payload: any) {
     createdAt: new Date(),
     orderStatus: payload.orderStatus,
     paymentStatus: payload.paymentStatus,
+    customerIp: payload.ip,
+  };
+  // console.log({ ip: payload.ip });
+
+  const [orderResult, locationResult] = await Promise.all([
+    visitorLog.findOne({ ip: (payload as any).ip }),
+    userLocation.findOne({ ip: (payload as any).ip }),
+  ]);
+
+  const riskScore = calculateRisk({ ...orderResult, ...locationResult });
+  console.log({ riskScore: riskScore });
+
+  const finalORderData = {
+    ...orderData,
+    riskScore,
+    FakeOrderStatus:
+      riskScore >= 60 ? "FRAUD" : riskScore >= 40 ? "SUSPICIOUS" : "LEGIT",
+    isEmailVerified: riskScore >= 40 ? false : true,
   };
 
   // Insert order into DB
-  const result = await createOrderCollection.insertOne(orderData);
+  const result = await createOrderCollection.insertOne(finalORderData);
 
   const orderId = result.insertedId;
 
@@ -128,8 +158,39 @@ export async function CreateOrderService(payload: any) {
     );
   }
 
+  const updateRiskScore = await addFraudScoreService({
+    ip: payload.ip,
+    riskScore: riskScore,
+  });
+
+  console.log({ updateRiskScore: updateRiskScore });
+
+  if (riskScore >= 60) {
+    return {
+      status: "FRAUD",
+      requireEmailOTP: true,
+      orderId: orderId,
+      email: payload.customerInfo.email,
+      riskScore,
+    };
+  }
+
+  if (riskScore >= 40) {
+    return {
+      status: "SUSPICIOUS",
+      requireEmailOTP: true,
+      orderId: orderId,
+      email: payload.customerInfo.email,
+      riskScore,
+    };
+  }
+
+  // console.log({ riskScore: riskScore });
+
   try {
     const fbCreds = await getFacebookCredentialsService();
+
+    // console.log({ fbCreds: fbCreds });
 
     if (fbCreds?.isEnabled && fbCreds._internal.fbCapiToken) {
       const fbPayload = {
@@ -408,30 +469,30 @@ export async function getDashboardAnalytics() {
     .toArray();
 
   const totalPurchaseResult = await productCollection
-  .aggregate([
-    {
-      $match: {
-        isDelete: false 
-      }
-    },
-    {
-      $project: {
-        purchase: {
-          $toDouble: "$purchase"
-        }
-      }
-    },
-    {
-      $group: {
-        _id: null,
-        totalOverallPurchase: { $sum: "$purchase" }
-      }
-    }
-  ])
-  .toArray();
+    .aggregate([
+      {
+        $match: {
+          isDelete: false,
+        },
+      },
+      {
+        $project: {
+          purchase: {
+            $toDouble: "$purchase",
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalOverallPurchase: { $sum: "$purchase" },
+        },
+      },
+    ])
+    .toArray();
 
-const totalOverallPurchase =
-  totalPurchaseResult[0]?.totalOverallPurchase || 0;
+  const totalOverallPurchase =
+    totalPurchaseResult[0]?.totalOverallPurchase || 0;
 
   const totalOrder = await createOrderCollection.countDocuments();
 
@@ -441,7 +502,7 @@ const totalOverallPurchase =
     analytics: analytics,
     totalProduct: totalProduct,
     productAnalytics: productAnalytics,
-    totalOverallPurchase
+    totalOverallPurchase,
   };
 }
 
@@ -487,4 +548,50 @@ export const topSellingProduct = async () => {
 export const deleteOrderServer = async (query: any) => {
   const deleteOrder = await createOrderCollection.deleteOne(query);
   return deleteOrder;
+};
+
+export const storeOTPForOrder = async (payload: any) => {
+  const { orderId, email } = payload;
+  const otp = generateSecureOTP();
+
+  if (!email || !orderId || otp.length === 0) {
+    return {
+      status: false,
+      message: "Missing required information for OTP generation",
+    };
+  }
+
+  await otpCollection.deleteMany({ orderId: new ObjectId(orderId) });
+
+  try {
+    const otpData = await otpCollection.insertOne({
+      email: email,
+      orderId: new ObjectId(orderId),
+      otp: otp,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    });
+
+    const emailPayload = {
+      to: email,
+      subject: "Your OTP for Order Verification",
+      text: `Your OTP for verifying order ${orderId} is: ${otp}. It will expire in 2 minutes.`,
+      orderId: orderId,
+      otp: otp,
+    };
+
+    await sendEmail(emailPayload);
+
+    console.log({ otpData: otpData });
+
+    return {
+      success: true,
+      message: "OTP generated and email sent successfully",
+      otpId: otpData.insertedId,
+      productId: orderId,
+    };
+  } catch (err) {
+    console.error("Error storing OTP:", err);
+    return { status: false, message: "Error storing OTP" };
+  }
 };

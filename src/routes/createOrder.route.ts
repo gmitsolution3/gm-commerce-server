@@ -8,10 +8,11 @@ import {
   orderController,
   updateOrder,
 } from "../controllers/createOrder.controller";
+import { getUserIP } from "../middleware/getUserIP";
 
 const router = Router();
 
-router.post("/", CreateOrder);
+router.post("/",getUserIP, CreateOrder);
 router.get("/all-product", orderController);
 router.get("/dashboard-analytics", dashboardAnalyticsController);
 router.get("/get-history/:id", historyController);

@@ -157,8 +157,6 @@ export const getAllMarquee = async(req:Request, res:Response)=>{
   try{
     const result= await getAllMarqueeService()
 
-
-
     if(!result.length){
       return res.status(404).json({
         success: false,
