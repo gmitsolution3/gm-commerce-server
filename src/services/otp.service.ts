@@ -12,11 +12,7 @@ const createOrderCollection = client
 const usersCollection = client.db("loweCommerce").collection("users");
 
 export const verifyOTPForOrder = async (query: any, otp: string) => {
-  console.log({ query: query });
-  //   const query = { orderId: orderId };
   const otpRecord = await otpCollection.findOne(query);
-
-  console.log({ otpRecord: otpRecord });
 
   if (!otpRecord) {
     return {

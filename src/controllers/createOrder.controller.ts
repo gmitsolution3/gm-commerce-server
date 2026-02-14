@@ -26,10 +26,7 @@ export const CreateOrder = async (req: Request, res: Response) => {
   const finalPayload = {ip, ...orderData}
 
   try {
-    console.log("create order knocked")
     const result = await CreateOrderService(finalPayload);
-
-    console.log({orderResult: result})
 
 
     if(result.status === "FRAUD" || result.status === "SUSPICIOUS"){

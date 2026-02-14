@@ -9,8 +9,9 @@ import socialRoute from "./routes/social.route";
 import authRouter from "./routes/auth.route";
 import marqueeRoute from "./routes/marquee.route";
 import courierRoute from "./routes/courier.route";
-import ipRouter from "./routes/getIp.route"
-import otpRouter from "./routes/otp.route"
+import ipRouter from "./routes/getIp.route";
+import otpRouter from "./routes/otp.route";
+import paymentRoute from "./routes/payment.route";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
@@ -62,6 +63,8 @@ app.use("/api", ipRouter);
 
 app.use("/api/otp", otpRouter);
 
+// payment route
+app.use("/payment", paymentRoute);
 
 app.get("/", (req, res) => {
   res.send("server is running");
